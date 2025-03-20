@@ -1,0 +1,54 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "MTG Viewer",
+        "description": "Une simple application pour visualiser les cartes Magic The Gathering",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/card/all": {
+            "get": {
+                "tags": [
+                    "Card"
+                ],
+                "summary": "Liste les cartes",
+                "description": "truc",
+                "operationId": "get_api_card_List all cards",
+                "responses": {
+                    "default": {
+                        "description": ""
+                    }
+                }
+            }
+        },
+        "/api/card/{uuid}": {
+            "get": {
+                "tags": [
+                    "Card"
+                ],
+                "operationId": "get_api_card_Show card",
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "default": {
+                        "description": ""
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Card",
+            "description": "Routes for all about cards"
+        }
+    ]
+}

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { fetchCard } from '../services/cardService';
 import CardProperty from '../components/CardProperty.vue';

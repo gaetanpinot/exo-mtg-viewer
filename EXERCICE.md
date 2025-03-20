@@ -32,6 +32,8 @@ Consigne:
 ## 3. Ajouter des filtres
 Ajouter un fitlre sur le setCode pour la recherche de carte et le listing de carte.  
 Pensez à faire une route qui liste tous les setCode disponible pour les afficher dans un select. (documentation OpenAPI, etc.)
+**La documentation automatique ne fonctionne pas très bien, les descriptions, paramètres et schema de retour sur les routes
+ne s'affiche pas sur la doc généré par api-doc-bundle/openapi**
 
 ## 4. Ajouter la pagination
 Vous avez réussi a importer +30,000 cartes, super ! La page de listing de carte est maintenant très lente.

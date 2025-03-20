@@ -20,13 +20,46 @@ class ApiCardController extends AbstractController
         private readonly LoggerInterface $logger
     ) {
     }
+
     #[Route('/all', name: 'List all cards', methods: ['GET'])]
     #[OA\Put(description: 'Return all cards in the database')]
     #[OA\Response(response: 200, description: 'List all cards')]
     public function cardAll(): Response
     {
-        $cards = $this->entityManager->getRepository(Card::class)->findAll();
+        $offset = $_GET['page'] ?? 0;
+        $search = $_GET['search'] ?? '';
+        $setCode = $_GET['setCode'] ?? '';
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('c')
+            ->from(Card::class, 'c');
+        if (strlen($search) > 2) {
+            $qb->where('upper(c.name) LIKE upper(:search)')
+                ->setParameter('search', "%$search%");
+        }
+        if (strlen($setCode) > 0) {
+            $qb->andWhere('c.setCode = :setCode')
+                ->setParameter('setCode', $setCode);
+        }
+        $cards = $qb->orderBy('c.id', 'ASC')
+            ->setMaxResults(20)
+            ->setFirstResult($offset * 20)
+            ->getQuery()
+            ->getResult();
+        $this->logger->info("List all cards, page $offset");
         return $this->json($cards);
+    }
+
+    #[Route('/setCodes', name: 'ListeCodes', methods: ['GET'])]
+    #[OA\Put(description: 'Return all set codes in the database')]
+    #[OA\Response(response: 200, description: 'List all set codes')]
+    public function getSetCode(): Response
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('DISTINCT c.setCode')
+            ->from(Card::class, 'c');
+        $setCodes = $qb->getQuery()->getResult();
+        $this->logger->info('List all set codes');
+        return $this->json($setCodes);
     }
 
     #[Route('/{uuid}', name: 'Show card', methods: ['GET'])]
@@ -40,6 +73,7 @@ class ApiCardController extends AbstractController
         if (!$card) {
             return $this->json(['error' => 'Card not found'], 404);
         }
+        $this->logger->info('Show card ' . $uuid);
         return $this->json($card);
     }
 }

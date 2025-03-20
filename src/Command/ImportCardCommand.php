@@ -23,18 +23,18 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class ImportCardCommand extends Command
 {
+    private array $times;
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly LoggerInterface        $logger,
-        private array                           $csvHeader = []
-    )
-    {
+        private readonly LoggerInterface $logger,
+        private array $csvHeader = []
+    ) {
         parent::__construct();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        ini_set('memory_limit', '2G');
+        ini_set('memory_limit', '4G');
         // On récupère le temps actuel
         $io = new SymfonyStyle($input, $output);
         $filepath = __DIR__ . '/../../data/cards.csv';
@@ -51,24 +51,75 @@ class ImportCardCommand extends Command
 
         $i = 0;
         $this->csvHeader = fgetcsv($handle);
-        $uuidInDatabase = $this->entityManager->getRepository(Card::class)->getAllUuids();
+        $repoCard = $this->entityManager->getRepository(Card::class);
+        $uuidInDatabase = $repoCard->getAllUuids();
 
         $progressIndicator = new ProgressIndicator($output);
         $progressIndicator->start('Importing cards...');
 
-        while (($row = $this->readCSV($handle)) !== false) {
-            $i++;
+        function printmem(string $msg)
+        {
+            echo "\r\n" . $msg . ' usage: ' . memory_get_usage() / 1000000 . 'mB real_usage: ' . memory_get_usage(true) / 1000000 . 'mB ';
+        }
 
-            if (!in_array($row['uuid'], $uuidInDatabase)) {
-                $this->addCard($row);
-            }
+        printmem('Start');
+        $use_rows = true;
+        $this->times = [
+            "readcsv" => 0,
+            "flush" => 0,
+            "clear" => 0,
+            "persist" => 0,
+            "isuuidindb" => 0,
+        ];
+        if ($use_rows) {
+            while (($rows = $this->readCsvBy($handle, 300)) !== false) {
+                foreach ($rows as $row) {
+                    $time = microtime(true);
+                    $isNotInDb = !in_array($row['uuid'], $uuidInDatabase);
+                    /*$isNotInDb = $repoCard->find($row['uuid']) == null;*/
+                    /*$isNotInDb = true;*/
+                    $this->times["isuuidindb"] += microtime(true) - $time;
+                    if ($isNotInDb) {
+                        $time = microtime(true);
+                        $this->addCard($row);
+                        $this->times["persist"] += microtime(true) - $time;
+                    }
+                    $i++;
+                }
 
-            if ($i % 2000 === 0) {
-                $this->entityManager->flush();
+                /*printmem("Iteration $i avant flush");*/
+                $time = microtime(true);
+                try {
+                    $this->entityManager->flush();
+                } catch (\Exception $e) {
+                    $io->error("$i :".$e->getMessage());
+                    return Command::FAILURE;
+                }
+                $this->times["flush"] += microtime(true) - $time;
+                $time = microtime(true);
                 $this->entityManager->clear();
-                $progressIndicator->advance();
+                $this->times["clear"] += microtime(true) - $time;
+                /*printmem("Iteration $i après flush");*/
+                /*$progressIndicator->advance();*/
+            }
+        } else {
+            while (($row = $this->readCSV($handle)) !== false) {
+                $i++;
+
+                if (!in_array($row['uuid'], $uuidInDatabase)) {
+                    $this->addCard($row);
+                }
+
+                if ($i % 300 === 0) {
+                    printmem("Iteration $i avant flush");
+                    $this->entityManager->flush();
+                    $this->entityManager->clear();
+                    printmem("Iteration $i après flush");
+                    /*$progressIndicator->advance();*/
+                }
             }
         }
+        var_dump($this->times);
         // Toujours flush en sorti de boucle
         $this->entityManager->flush();
         $progressIndicator->finish('Importing cards done.');
@@ -91,6 +142,24 @@ class ImportCardCommand extends Command
         return array_combine($this->csvHeader, $row);
     }
 
+    private function readCsvBy(mixed $handle, int $limit): array|false
+    {
+        $rows = [];
+        $time = microtime(true);
+        for ($i = 0; $i < $limit; $i++) {
+            $row = fgetcsv($handle);
+            if ($row === false) {
+                if ($i === 0) {
+                    return false;
+                }
+                break;
+            }
+            $rows[] = array_combine($this->csvHeader, $row);
+        }
+        $this->times["readcsv"] += microtime(true) - $time;
+        return $rows;
+    }
+
     private function addCard(array $row)
     {
         $uuid = $row['uuid'];
@@ -106,6 +175,5 @@ class ImportCardCommand extends Command
         $card->setText($row['text']);
         $card->setType($row['type']);
         $this->entityManager->persist($card);
-
     }
 }
